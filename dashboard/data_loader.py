@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.backtester import load_tracked_performance, summarize_tracked_performance
 from data.portfolio_loader import get_portfolio, get_portfolio_summary as load_portfolio_summary
 from data.portfolio_manager import PortfolioManagerError, evaluate_signal_against_portfolio
+from data.open_trades_manager import load_open_trades, summarize_open_trades
 
 try:
     from config import DB_PATH
@@ -223,3 +224,13 @@ def get_tracked_performance(limit: int = 100) -> List[Dict[str, Any]]:
 def get_tracked_performance_summary(limit: int = 500) -> Dict[str, Any]:
     """Load aggregated tracked performance metrics for the dashboard."""
     return summarize_tracked_performance(limit=limit)
+
+
+def get_open_trades(limit: int = 100) -> List[Dict[str, Any]]:
+    """Load open trades from SQLite for the dashboard."""
+    return load_open_trades(limit=limit)
+
+
+def get_open_trades_summary() -> Dict[str, Any]:
+    """Load aggregated open-trade metrics for the dashboard."""
+    return summarize_open_trades()

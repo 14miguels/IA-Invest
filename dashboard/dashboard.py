@@ -12,7 +12,12 @@ from config import (
     REFRESH_INTERVAL,
 )
 
-from data_loader import get_latest_articles, get_latest_signals
+from data_loader import (
+    get_latest_articles,
+    get_latest_signals,
+    get_open_trades,
+    get_open_trades_summary,
+)
 from app.backtester import load_tracked_performance, summarize_tracked_performance
 from components import (
     render_articles_table,
@@ -222,9 +227,17 @@ def _performance_priority(row: Dict[str, Any]) -> tuple:
 
 
 
+
 def _format_pct(value: Any) -> str:
     try:
         return f"{float(value):.2f}%"
+    except (TypeError, ValueError):
+        return "-"
+
+
+def _format_price(value: Any) -> str:
+    try:
+        return f"{float(value):.2f}"
     except (TypeError, ValueError):
         return "-"
 
@@ -246,6 +259,9 @@ articles = sorted(articles, key=_article_priority, reverse=True)
 performance_rows = load_tracked_performance(limit=200)
 performance_rows = sorted(performance_rows, key=_performance_priority, reverse=True)
 performance_summary = summarize_tracked_performance(limit=500)
+
+open_trades_rows = get_open_trades(limit=200)
+open_trades_summary = get_open_trades_summary()
 
 # ---------------------------
 # TOP METRICS
@@ -281,7 +297,7 @@ filtered_signals = _apply_quick_filters(filtered_signals, quick_filter)
 # MAIN CONTENT TABS
 # ---------------------------
 
-signals_tab, news_tab, performance_tab = st.tabs(["Signals", "News", "Performance"])
+signals_tab, news_tab, open_trades_tab, performance_tab = st.tabs(["Signals", "News", "Open Trades", "Performance"])
 
 with signals_tab:
     st.subheader("Top Ranked Signals")
@@ -297,9 +313,17 @@ with signals_tab:
             st.caption("Only signals with confidence ≥ 4 and action different from HOLD.")
             for signal in high_conviction:
                 assets = signal.get("assets") or []
+                decisions_by_asset = signal.get("portfolio_decisions_by_asset") or {}
                 decision = signal.get("portfolio_decision")
 
-                if assets and decision:
+                if decisions_by_asset:
+                    st.markdown("**Portfolio Decisions:**")
+                    for asset in assets:
+                        asset_key = str(asset).upper().strip()
+                        asset_decision = decisions_by_asset.get(asset_key) or decisions_by_asset.get(str(asset)) or decision
+                        if asset_decision:
+                            st.caption(f"{asset} → {asset_decision}")
+                elif assets and decision:
                     if len(assets) == 1:
                         st.caption(f"Portfolio: {decision}")
                     else:
@@ -312,9 +336,17 @@ with signals_tab:
             st.markdown("## Other Signals")
             for signal in remaining_signals:
                 assets = signal.get("assets") or []
+                decisions_by_asset = signal.get("portfolio_decisions_by_asset") or {}
                 decision = signal.get("portfolio_decision")
 
-                if assets and decision:
+                if decisions_by_asset:
+                    st.markdown("**Portfolio Decisions:**")
+                    for asset in assets:
+                        asset_key = str(asset).upper().strip()
+                        asset_decision = decisions_by_asset.get(asset_key) or decisions_by_asset.get(str(asset)) or decision
+                        if asset_decision:
+                            st.caption(f"{asset} → {asset_decision}")
+                elif assets and decision:
                     if len(assets) == 1:
                         st.caption(f"Portfolio: {decision}")
                     else:
@@ -359,6 +391,57 @@ with news_tab:
     st.markdown("---")
     with st.expander("All Filtered News", expanded=False):
         render_articles_table(articles)
+
+
+
+# ---------------------------
+# OPEN TRADES TAB
+# ---------------------------
+
+with open_trades_tab:
+    st.subheader("Open Trades")
+    st.caption("Actionable signals currently stored as open paper trades.")
+
+    ot_col1, ot_col2, ot_col3 = st.columns(3)
+    ot_col1.metric("Open Trades", open_trades_summary.get("open_trades", 0))
+    ot_col2.metric("Avg Unrealized Return", _format_pct(open_trades_summary.get("avg_unrealized_return_pct", 0.0)))
+    ot_col3.metric(
+        "Total Unrealized Weighted Return",
+        _format_pct(open_trades_summary.get("total_unrealized_weighted_return_pct", 0.0)),
+    )
+
+    if not open_trades_rows:
+        st.info("No open trades available yet.")
+    else:
+        for row in open_trades_rows[:20]:
+            with st.container(border=True):
+                st.markdown(f"### {row.get('title', '')}")
+
+                top_col1, top_col2, top_col3, top_col4 = st.columns(4)
+                top_col1.metric("Asset", str(row.get("asset") or "-"))
+                top_col2.metric("Action", str(row.get("action") or "-"))
+                top_col3.metric("Unrealized", _format_pct(row.get("unrealized_return_pct")))
+                top_col4.metric("Days Open", row.get("days_open") or 0)
+
+                price_col1, price_col2, price_col3, price_col4 = st.columns(4)
+                price_col1.metric("Entry Price", _format_price(row.get("entry_price")))
+                price_col2.metric("Current Price", _format_price(row.get("current_price")))
+                price_col3.metric("Confidence", row.get("confidence") or "-")
+                price_col4.metric("Position Size", row.get("position_size") or "-")
+
+                st.caption(
+                    " • ".join(
+                        [
+                            f"Status: {row.get('status', '-')}",
+                            f"Created: {row.get('created_at', '-')}",
+                            f"Timestamp: {row.get('timestamp', '-')}",
+                        ]
+                    )
+                )
+
+        st.markdown("---")
+        st.subheader("Open Trades Table")
+        st.dataframe(open_trades_rows, use_container_width=True, hide_index=True)
 
 
 

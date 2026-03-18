@@ -51,6 +51,11 @@ YFINANCE_MAP = {
     "GOLD": "GLD",
 }
 
+UNSUPPORTED_BACKTEST_ASSETS = {
+    "ALUMINUM",
+    "ALUMINIUM",
+}
+
 VALID_ACTIONS = {"BUY", "SELL"}
 DEFAULT_DB_PATH = Path(__file__).resolve().parents[1] / "data" / "invest.db"
 
@@ -168,7 +173,11 @@ def _candidate_assets(assets: List[str]) -> List[str]:
     candidates: List[str] = []
 
     for asset in assets:
-        normalized = _normalize_asset(str(asset))
+        raw_asset = str(asset or "").upper().strip()
+        if raw_asset in UNSUPPORTED_BACKTEST_ASSETS:
+            continue
+
+        normalized = _normalize_asset(raw_asset)
         if normalized and normalized not in seen:
             seen.add(normalized)
             candidates.append(normalized)
@@ -260,7 +269,9 @@ def backtest_signal(signal: Dict[str, Any], holding_days: int = 3) -> BacktestTr
 
     candidate_assets = _candidate_assets([str(asset) for asset in assets])
     if not candidate_assets:
-        raise BacktesterError("Signal has no valid normalized assets.")
+        raise BacktesterError(
+            f"Signal has no valid backtestable assets after filtering: {assets!r}"
+        )
 
     last_error: BacktesterError | None = None
     for asset in candidate_assets:
