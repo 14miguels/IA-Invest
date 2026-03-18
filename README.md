@@ -270,6 +270,3 @@ The database schema stores enough context to reconstruct and re-evaluate any pas
 
 This project is licensed under the [MIT License](LICENSE).
 
----
-
-*Built with ❤️ using Python, Google Gemini, and Streamlit.*
